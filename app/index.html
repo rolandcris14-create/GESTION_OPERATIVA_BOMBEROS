@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Laboratorio de Decisiones</title>
+<meta name="description" content="Práctica interactiva por capítulo del manual de Toma de Decisiones Clínicas en Atención Prehospitalaria (The ResusLab).">
+<link rel="icon" href="isotipo_resuslab.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Montserrat:wght@700;800&display=swap">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="motor.js"></script>
+<script>
+  /* Carga los capítulos disponibles; los que falten aparecen "en preparación". */
+  (function () {
+    var pendientes = 20;
+    function listo() { if (--pendientes === 0) TDC.iniciar(document.getElementById('app')); }
+    for (var n = 1; n <= 20; n++) {
+      var s = document.createElement('script');
+      s.src = 'capitulos/c' + (n < 10 ? '0' : '') + n + '.js';
+      s.onload = s.onerror = listo;
+      document.body.appendChild(s);
+    }
+  })();
+</script>
+</body>
+</html>
