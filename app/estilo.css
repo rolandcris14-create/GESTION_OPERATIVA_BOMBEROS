@@ -40,7 +40,7 @@ header.barra a { color: inherit; text-decoration: none; }
 .intro p { max-width: 70ch; color: var(--gris); margin: 0 0 8px; }
 .parte { margin: 26px 0 8px; font: 700 12px Inter; letter-spacing: .12em; text-transform: uppercase; color: var(--rojo); }
 .rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
-.tarjeta-cap { background: var(--panel); border: 1px solid var(--linea); border-radius: var(--radio); padding: 14px 16px; box-shadow: var(--sombra); text-align: left; color: inherit; display: flex; flex-direction: column; gap: 6px; transition: transform .12s, border-color .12s; }
+.tarjeta-cap { text-decoration: none; background: var(--panel); border: 1px solid var(--linea); border-radius: var(--radio); padding: 14px 16px; box-shadow: var(--sombra); text-align: left; color: inherit; display: flex; flex-direction: column; gap: 6px; transition: transform .12s, border-color .12s; }
 .tarjeta-cap:hover { transform: translateY(-2px); border-color: var(--rojo); }
 .tarjeta-cap .num { font: 800 12px Montserrat; color: var(--rojo); letter-spacing: .08em; }
 .tarjeta-cap .tit { font: 700 16px Montserrat; color: var(--tinta); }
