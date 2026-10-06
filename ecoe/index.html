@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ECOE APH CBCM</title>
+<meta name="description" content="Evaluación práctica (ECOE) de atención prehospitalaria del Cuerpo de Bomberos del Cantón Morona: sorteo de caso, guía confidencial, rúbrica y acta.">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="datos.js"></script>
+<style>
+  body { background:#f4f4f5; }
+  .guia table { width:100%; border-collapse:collapse; font-size:.9rem; margin:.6rem 0 1rem; }
+  .guia th, .guia td { border:1px solid #d4d4d8; padding:.45rem .5rem; vertical-align:top; text-align:left; }
+  .guia th { background:#f4f4f5; font-weight:600; }
+  .guia h4 { font-size:1.25rem; font-weight:700; color:#7f1d1d; margin:.2rem 0 .6rem; }
+  .guia p { margin:.5rem 0; line-height:1.5; }
+  .guia ol { list-style:decimal; padding-left:1.4rem; margin:.4rem 0 1rem; }
+  .guia li { margin:.25rem 0; }
+  .guia .tw { overflow-x:auto; }
+  .ruleta { transition: transform .08s; }
+  @media print {
+    body { background:#fff; }
+    .no-print { display:none !important; }
+    #acta { box-shadow:none !important; margin:0 !important; max-width:none !important; }
+    @page { size:A4; margin:14mm; }
+  }
+</style>
+</head>
+<body class="text-zinc-900 antialiased">
+<div id="app"></div>
+<script>
+const BC = window.ECOE.bc, CASOS = window.ECOE.casos;
+const S = { vista:'home', caso:null, meta:{}, notas:'', tab:'guia', cal:{}, seg:0, corre:false, timer:null, error:'' };
+const $ = s => document.querySelector(s);
+const esc = t => String(t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt = s => String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+const usaBC = () => S.caso.code !== 'A0101';
+const items = () => [...(usaBC()? BC.map(b=>({...b, k:b.n})) : []), ...S.caso.crit.map(c=>({...c, k:S.caso.code+'-'+c.n}))];
+
+function header(){
+  return `<header class="bg-red-700 text-white no-print"><div class="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
+    <div class="w-9 h-9 rounded-full bg-white/15 grid place-items-center font-bold">CB</div>
+    <div><div class="font-semibold leading-tight">ECOE Atención Prehospitalaria</div><div class="text-xs text-red-100">Cuerpo de Bomberos del Cantón Morona</div></div></div></header>`;
+}
+function render(){
+  const v = S.vista; let h = '';
+  if (v==='home') h = header() + `<main class="max-w-3xl mx-auto px-4 py-10 text-center">
+    <h1 class="text-3xl font-bold">Evaluación práctica</h1>
+    <p class="text-zinc-600 mt-2">${CASOS.length} estaciones clínicas. El caso se asigna al azar.</p>
+    <div id="ruleta" class="ruleta mt-10 mx-auto max-w-xl rounded-2xl bg-white shadow border-2 border-zinc-200 p-6 min-h-[120px] grid place-items-center">
+      <div><div id="rcode" class="text-red-700 font-mono text-2xl font-bold">— — —</div><div id="rtema" class="text-lg mt-1 text-zinc-700">Listo para sortear</div></div></div>
+    <button id="btnSort" class="mt-10 w-full max-w-xl bg-red-700 hover:bg-red-800 active:scale-[.98] text-white text-2xl font-bold rounded-2xl py-8 shadow-lg">Sortear caso</button>
+    <details class="mt-8 text-left max-w-xl mx-auto text-sm"><summary class="cursor-pointer text-zinc-500">Elegir un caso manualmente (instructor)</summary>
+      <select id="manual" class="mt-2 w-full border rounded-lg p-3">${CASOS.map((c,i)=>`<option value="${i}">${c.code} ${esc(c.tema)}</option>`).join('')}</select>
+      <button id="btnManual" class="mt-2 w-full border border-zinc-400 rounded-lg py-3">Usar este caso</button></details></main>`;
+  if (v==='despacho') h = header() + `<main class="max-w-3xl mx-auto px-4 py-10">
+    <div class="text-sm uppercase tracking-wide text-zinc-500">Caso asignado</div>
+    <h1 class="text-3xl font-bold mt-1"><span class="text-red-700 font-mono">${S.caso.code}</span> ${esc(S.caso.tema)}</h1>
+    <div class="mt-3 inline-block bg-zinc-200 rounded-full px-3 py-1 text-sm">Tiempo de la estación: ${S.caso.min} minutos</div>
+    <section class="mt-8 bg-white rounded-2xl shadow p-6 border-l-8 border-red-700">
+      <div class="text-sm font-semibold text-red-700 uppercase tracking-wide">Despacho</div>
+      <p class="text-xl leading-relaxed mt-3">${esc(S.caso.despacho)}</p></section>
+    <button id="btnEntregar" class="mt-10 w-full bg-zinc-900 text-white text-xl font-semibold rounded-2xl py-6">Entregar dispositivo al instructor</button></main>`;
+  if (v==='seguridad') h = `<main class="min-h-screen bg-zinc-900 text-white grid place-items-center px-4"><div class="max-w-lg text-center">
+    <div class="mx-auto w-20 h-20 rounded-full bg-red-700 grid place-items-center text-4xl font-bold">!</div>
+    <h1 class="text-3xl font-bold mt-6">Área confidencial</h1>
+    <p class="mt-3 text-zinc-300">El contenido siguiente es exclusivo del evaluador. El evaluado no debe ver la pantalla.</p>
+    <button id="btnControl" class="mt-10 w-full bg-red-700 hover:bg-red-800 text-xl font-semibold rounded-2xl py-6">Confirmo: el instructor tiene el control</button></div></main>`;
+  if (v==='meta') h = header() + `<main class="max-w-2xl mx-auto px-4 py-8">
+    <h1 class="text-2xl font-bold">Datos de la evaluación</h1>
+    <p class="text-zinc-600">${S.caso.code} ${esc(S.caso.tema)} · ${S.caso.min} min</p>
+    <form id="fmeta" class="mt-6 bg-white rounded-2xl shadow p-6 grid gap-4">
+      ${campo('evaluado','Evaluado','text')}${campo('cedula','Cédula','text','inputmode="numeric"')}
+      <label class="grid gap-1"><span class="text-sm font-medium">Nivel</span><select required name="nivel" class="border rounded-lg p-3 text-lg"><option value="">Seleccione</option><option>BAPH</option><option>N1</option><option>N2</option></select></label>
+      ${campo('evaluador','Evaluador','text')}${campo('fecha','Fecha y hora','datetime-local')}
+      <button class="mt-2 bg-red-700 text-white text-xl font-semibold rounded-2xl py-5">Iniciar evaluación</button></form>
+    <p class="text-xs text-zinc-500 mt-3">Nivel de la estación: ${esc(S.caso.nivel)}</p></main>`;
+  if (v==='eval') h = evalView();
+  if (v==='acta') h = actaView();
+  $('#app').innerHTML = h; bind();
+}
+function campo(n,l,t,x=''){ const val = n==='fecha' ? new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,16) : '';
+  return `<label class="grid gap-1"><span class="text-sm font-medium">${l}</span><input required name="${n}" type="${t}" value="${val}" ${x} class="border rounded-lg p-3 text-lg"></label>`; }
+
+function filaCal(it){
+  const v = S.cal[it.k];
+  const b = (val,lab,cl) => `<button data-k="${it.k}" data-v="${val}" class="cal flex-1 min-w-[64px] rounded-xl py-3 font-bold border-2 ${v===val?cl:'border-zinc-300 bg-white text-zinc-700'}">${lab}</button>`;
+  return `<div id="f-${it.k}" class="bg-white rounded-xl p-4 shadow-sm border ${it.c?'border-red-300':'border-zinc-200'}">
+    <div class="flex gap-3"><div class="font-mono text-sm text-zinc-500 pt-0.5 w-8 shrink-0">${it.n}</div>
+    <div class="flex-1">${it.c?'<span class="inline-block text-xs font-bold bg-red-700 text-white rounded px-2 py-0.5 mb-1">CRÍTICO</span> ':''}<span>${esc(it.t)}</span></div></div>
+    <div class="flex gap-2 mt-3 flex-wrap">${b('2','2 Correcto','bg-green-600 border-green-600 text-white')}${b('1','1 Omisión menor','bg-amber-500 border-amber-500 text-white')}${b('0','0 Incorrecto','bg-red-700 border-red-700 text-white')}${b('NA','NA','bg-zinc-600 border-zinc-600 text-white')}</div></div>`;
+}
+function evalView(){
+  const its = items(), hechos = its.filter(i=>S.cal[i.k]!==undefined).length, lim = S.caso.min*60, pas = S.seg>=lim;
+  const guia = marked.parse(S.caso.guia).replace(/<table>/g,'<div class="tw"><table>').replace(/<\/table>/g,'</table></div>');
+  return `<div class="sticky top-0 z-10 bg-zinc-900 text-white shadow"><div class="max-w-5xl mx-auto px-4 py-2 flex items-center gap-3 flex-wrap">
+      <div class="flex-1 min-w-[180px]"><div class="font-mono text-red-400 font-bold">${S.caso.code}</div><div class="text-sm truncate">${esc(S.caso.tema)} · ${esc(S.meta.evaluado)}</div></div>
+      <div class="text-center"><div id="crono" class="font-mono text-3xl font-bold ${pas?'text-red-500':''}">${fmt(S.seg)}</div><div class="text-xs text-zinc-400">límite ${S.caso.min}:00</div></div>
+      <button id="btnPlay" class="bg-white/10 hover:bg-white/20 rounded-xl px-4 py-3 font-semibold">${S.corre?'Pausa':'Reanudar'}</button></div>
+      <div class="h-1 bg-zinc-700"><div id="barra" class="h-1 ${pas?'bg-red-500':'bg-green-500'}" style="width:${Math.min(100,S.seg/lim*100)}%"></div></div>
+      <div class="max-w-5xl mx-auto px-4 flex gap-1">
+        ${['guia','rubrica'].map(t=>`<button data-tab="${t}" class="tab px-4 py-3 font-semibold border-b-4 ${S.tab===t?'border-red-500 text-white':'border-transparent text-zinc-400'}">${t==='guia'?'Guía confidencial':`Rúbrica (${hechos}/${its.length})`}</button>`).join('')}</div></div>
+    <main class="max-w-5xl mx-auto px-4 py-5">
+      ${S.tab==='guia' ? `<article class="guia bg-white rounded-2xl shadow p-5">${guia}</article>` :
+      `${usaBC()?`<h2 class="font-bold text-lg mb-2">Bloque común</h2><div class="grid gap-3">${its.filter(i=>i.n.startsWith('B')).map(filaCal).join('')}</div>`:''}
+       <h2 class="font-bold text-lg mt-6 mb-2">Criterios específicos ${S.caso.code}</h2>
+       <div class="grid gap-3">${its.filter(i=>!i.n.startsWith('B')).map(filaCal).join('')}</div>
+       <label class="block mt-6"><span class="font-bold">Notas del evaluador / retroalimentación (PEARLS)</span>
+       <textarea id="notas" rows="6" class="mt-2 w-full border rounded-xl p-3 bg-white">${esc(S.notas)}</textarea></label>
+       ${S.error?`<div class="mt-4 bg-red-100 border border-red-400 text-red-800 rounded-xl p-4 font-semibold">${S.error}</div>`:''}
+       <button id="btnFin" class="mt-4 mb-10 w-full bg-red-700 text-white text-xl font-semibold rounded-2xl py-5">Finalizar evaluación</button>`}
+    </main>`;
+}
+function resultado(){
+  const its = items(); let pts=0, ap=0; const fallos=[], crit=[];
+  its.forEach(i=>{ const v=S.cal[i.k]; if(v==='NA') return; ap++; pts+= +v; if(+v<2){ fallos.push({...i,v}); if(i.c) crit.push(i);} });
+  const pct = ap ? pts/(ap*2)*100 : 0;
+  return { pts, max:ap*2, pct, fallos, crit, ok: pct>=80 && crit.length===0 };
+}
+function actaView(){
+  const r = resultado(), m = S.meta, f = m.fecha ? new Date(m.fecha).toLocaleString('es-EC',{dateStyle:'long',timeStyle:'short'}) : '';
+  const row = (a,b)=>`<tr><td class="border px-3 py-2 bg-zinc-50 font-medium w-48">${a}</td><td class="border px-3 py-2">${b}</td></tr>`;
+  return `<div class="no-print">${header()}</div><main class="max-w-4xl mx-auto px-4 py-6">
+    <div id="acta" class="bg-white shadow rounded-2xl p-8">
+      <div class="flex items-start justify-between border-b-4 border-red-700 pb-3"><div>
+        <div class="text-sm text-zinc-600">Cuerpo de Bomberos del Cantón Morona · Brigada de Atención Prehospitalaria</div>
+        <h1 class="text-2xl font-bold mt-1">Acta de evaluación práctica (ECOE)</h1></div>
+        <div class="text-right font-mono text-red-700 font-bold text-xl">${S.caso.code}</div></div>
+      <table class="w-full mt-5 text-sm border-collapse">${row('Estación',S.caso.code+' '+esc(S.caso.tema))}${row('Escenario aplicado','«'+esc(S.caso.titulo)+'»')}${row('Evaluado',esc(m.evaluado))}${row('Cédula',esc(m.cedula))}${row('Nivel',esc(m.nivel))}${row('Evaluador',esc(m.evaluador))}${row('Fecha y hora',f)}${row('Tiempo empleado',fmt(S.seg)+' de '+S.caso.min+':00')}</table>
+      <div class="grid grid-cols-3 gap-3 mt-5 text-center">
+        <div class="border rounded-xl p-3"><div class="text-xs text-zinc-500">Puntos</div><div class="text-2xl font-bold">${r.pts} / ${r.max}</div></div>
+        <div class="border rounded-xl p-3"><div class="text-xs text-zinc-500">Porcentaje</div><div class="text-2xl font-bold">${r.pct.toFixed(1).replace(".",",")} %</div></div>
+        <div class="border rounded-xl p-3"><div class="text-xs text-zinc-500">Críticos cumplidos</div><div class="text-2xl font-bold">${r.crit.length?'No':'Sí'}</div></div></div>
+      <div class="mt-4 rounded-xl p-4 text-center text-2xl font-bold ${r.ok?'bg-green-600':'bg-red-700'} text-white">${r.ok?'COMPETENTE':'NO COMPETENTE'}</div>
+      ${!r.ok?`<p class="text-sm mt-2 text-zinc-600">${r.crit.length?'Uno o más criterios críticos con puntaje menor a 2.':''} ${r.pct<80?'Porcentaje menor al 80 %.':''}</p>`:''}
+      <h2 class="font-bold mt-6 mb-2">Criterios con puntaje menor a 2</h2>
+      ${r.fallos.length?`<table class="w-full text-sm border-collapse"><tr class="bg-zinc-100"><th class="border px-2 py-1 text-left">N°</th><th class="border px-2 py-1 text-left">Criterio</th><th class="border px-2 py-1">C</th><th class="border px-2 py-1">Puntaje</th></tr>
+        ${r.fallos.map(i=>`<tr><td class="border px-2 py-1 font-mono">${i.n}</td><td class="border px-2 py-1">${esc(i.t)}</td><td class="border px-2 py-1 text-center">${i.c?'Sí':''}</td><td class="border px-2 py-1 text-center font-bold">${i.v}</td></tr>`).join('')}</table>`:'<p class="text-sm text-zinc-600">Ninguno.</p>'}
+      <h2 class="font-bold mt-6 mb-2">Notas del evaluador y retroalimentación</h2>
+      <div class="border rounded-xl p-3 text-sm whitespace-pre-wrap min-h-[60px]">${esc(S.notas)||'Sin notas.'}</div>
+      <div class="grid grid-cols-2 gap-10 mt-16 text-center text-sm">
+        <div><div class="border-t border-zinc-800 pt-2">${esc(m.evaluado)}<br>Evaluado</div></div>
+        <div><div class="border-t border-zinc-800 pt-2">${esc(m.evaluador)}<br>Evaluador</div></div></div></div>
+    <div class="no-print grid sm:grid-cols-2 gap-3 mt-5">
+      <button id="btnPdf" class="bg-red-700 text-white text-lg font-semibold rounded-2xl py-5">Exportar a PDF</button>
+      <button id="btnNueva" class="border-2 border-zinc-400 text-lg font-semibold rounded-2xl py-5">Nueva evaluación</button></div></main>`;
+}
+function tick(){ S.seg++; const c=$('#crono'), b=$('#barra'), lim=S.caso.min*60;
+  if(c){ c.textContent=fmt(S.seg); c.classList.toggle('text-red-500',S.seg>=lim); }
+  if(b){ b.style.width=Math.min(100,S.seg/lim*100)+'%'; b.className='h-1 '+(S.seg>=lim?'bg-red-500':'bg-green-500'); } }
+function play(on){ S.corre=on; clearInterval(S.timer); if(on) S.timer=setInterval(tick,1000); }
+function sortear(){
+  const btn=$('#btnSort'); btn.disabled=true; btn.classList.add('opacity-60');
+  const fin=Math.floor(Math.random()*CASOS.length); let paso=0, total=30+Math.floor(Math.random()*10), i=0;
+  (function gira(){ i=(i+1)%CASOS.length; const c = paso===total ? CASOS[fin] : CASOS[i];
+    $('#rcode').textContent=c.code; $('#rtema').textContent=c.tema; $('#ruleta').style.transform=`scale(${1+(paso%2)*0.015})`;
+    if(paso++<total) setTimeout(gira, 40+paso*paso*0.35); else { $('#ruleta').classList.add('border-red-700'); setTimeout(()=>elegir(fin),1100); } })();
+}
+function elegir(i){ S.caso=CASOS[i]; S.cal={}; S.notas=''; S.seg=0; S.tab='guia'; S.error=''; S.vista='despacho'; render(); scrollTo(0,0); }
+function bind(){
+  const on=(s,f)=>{ const e=$(s); if(e) e.onclick=f; };
+  on('#btnSort', sortear); on('#btnManual', ()=>elegir(+$('#manual').value));
+  on('#btnEntregar', ()=>{ S.vista='seguridad'; render(); });
+  on('#btnControl', ()=>{ S.vista='meta'; render(); });
+  const fm=$('#fmeta'); if(fm) fm.onsubmit=e=>{ e.preventDefault(); S.meta=Object.fromEntries(new FormData(fm)); S.vista='eval'; play(true); render(); scrollTo(0,0); };
+  on('#btnPlay', ()=>{ play(!S.corre); $('#btnPlay').textContent=S.corre?'Pausa':'Reanudar'; });
+  document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{ S.tab=t.dataset.tab; render(); });
+  const nt=$('#notas'); if(nt) nt.oninput=()=>S.notas=nt.value;
+  document.querySelectorAll('.cal').forEach(b=>b.onclick=()=>{ S.cal[b.dataset.k]=b.dataset.v; const y=scrollY; render(); scrollTo(0,y); });
+  on('#btnFin', ()=>{ const falt=items().filter(i=>S.cal[i.k]===undefined);
+    if(falt.length){ S.error=`Faltan ${falt.length} criterio(s) por calificar: ${falt.map(f=>f.n).join(', ')}.`; render();
+      const el=$('#f-'+falt[0].k); el.scrollIntoView({behavior:'smooth',block:'center'}); el.classList.add('ring-4','ring-red-500');
+      setTimeout(()=>{ S.error=''; const e=$('.bg-red-100'); if(e) e.remove(); }, 4000); return; }
+    play(false); S.vista='acta'; render(); scrollTo(0,0); });
+  on('#btnPdf', ()=>window.print());
+  on('#btnNueva', ()=>{ if(confirm('¿Iniciar una nueva evaluación? Se perderán los datos actuales si no exportó el acta.')){ S.vista='home'; S.caso=null; render(); } });
+}
+render();
+</script>
+</body>
+</html>
